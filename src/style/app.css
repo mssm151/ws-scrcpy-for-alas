@@ -1,0 +1,494 @@
+:root {
+    /* Typography */
+    --font-size: 14px;
+    --panel-width: 3.715rem;
+    --font-family-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+    --font-family-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+    /* Palette */
+    --main-bg-color: hsl(220, 20%, 96%);
+    --surface-color: hsl(0, 0%, 100%);
+    --stream-bg-color: hsl(0, 0%, 85%);
+    --shell-bg-color: hsl(0, 0%, 0%);
+    --text-shadow-color: hsl(218, 67%, 95%);
+    --header-bg-color: hsl(0, 0%, 95%);
+    --controls-bg-color: hsla(220, 20%, 98%, 0.85);
+    --control-buttons-bg-color: hsl(0, 0%, 95%);
+    --text-color: hsl(220, 16%, 22%);
+    --text-color-light: hsl(220, 10%, 52%);
+    --link-color: hsl(214, 84%, 48%);
+    --link-color-light: hsl(214, 84%, 70%);
+    --link-color_visited: hsl(271, 68%, 40%);
+    --link-color_visited-light: hsl(271, 68%, 60%);
+    --svg-checkbox-bg-color: hsl(160, 84%, 39%);
+    --svg-button-fill: hsl(220, 12%, 48%);
+    --kill-button-hover-color: hsl(342, 100%, 45%);
+    --url-color: hsl(220, 8%, 56%);
+    --button-text-color: hsl(214, 82%, 48%);
+    --button-border-color: hsl(220, 12%, 78%);
+    --progress-background-color: hsla(225, 100%, 50%, 0.15);
+    --progress-background-error-color: hsla(0, 100%, 50%, 0.15);
+    --accent-color: hsl(214, 84%, 48%);
+    --accent-color-hover: hsl(214, 84%, 40%);
+    --success-color: hsl(145, 72%, 36%);
+    --error-color: hsl(4, 90%, 55%);
+    --border-color: hsl(220, 14%, 88%);
+    --shadow-color: hsla(220, 30%, 20%, 0.1);
+
+    /* Shape */
+    --radius-s: 6px;
+    --radius-m: 10px;
+    --radius-l: 14px;
+    --transition-fast: 0.15s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --main-bg-color: hsl(220, 14%, 12%);
+        --surface-color: hsl(220, 14%, 16%);
+        --stream-bg-color: hsl(0, 0%, 20%);
+        --shell-bg-color: hsl(0, 0%, 0%);
+        --text-shadow-color: hsl(218, 17%, 18%);
+        --header-bg-color: hsl(220, 14%, 19%);
+        --controls-bg-color: hsla(220, 14%, 18%, 0.85);
+        --control-buttons-bg-color: hsl(220, 14%, 18%);
+        --text-color: hsl(0, 0%, 90%);
+        --text-color-light: hsl(0, 0%, 60%);
+        --link-color: hsl(214, 84%, 66%);
+        --link-color-light: hsl(214, 84%, 50%);
+        --link-color_visited: hsl(267, 31%, 60%);
+        --link-color_visited-light: hsl(267, 31%, 40%);
+        --svg-checkbox-bg-color: hsl(160, 84%, 42%);
+        --svg-button-fill: hsl(0, 0%, 85%);
+        --kill-button-hover-color: hsl(342, 100%, 55%);
+        --url-color: hsl(220, 8%, 60%);
+        --button-text-color: hsl(214, 82%, 72%);
+        --button-border-color: hsl(220, 10%, 32%);
+        --border-color: hsl(220, 14%, 24%);
+        --shadow-color: hsla(0, 0%, 0%, 0.4);
+    }
+}
+
+html {
+    font-size: var(--font-size);
+}
+
+body {
+    color: var(--text-color);
+    background-color: var(--main-bg-color);
+    position: absolute;
+    margin: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    font-family: var(--font-family-ui);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+::selection {
+    background-color: hsla(214, 84%, 48%, 0.25);
+}
+
+a {
+    color: var(--link-color);
+    text-decoration: none;
+    transition: color var(--transition-fast);
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+a:visited {
+    color: var(--link-color_visited);
+}
+
+:focus {
+    outline: none;
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+body.shell {
+    background-color: var(--shell-bg-color);
+}
+
+body.stream {
+    background-color: var(--stream-bg-color);
+}
+
+.terminal-container {
+    width: 100%;
+    height: 100%;
+    padding: 5px;
+    box-sizing: border-box;
+}
+
+.flex-center {
+    display: flex;
+    align-items: center;
+}
+
+.wait {
+    cursor: wait;
+}
+
+.device-view {
+    display: flex;
+    flex-direction: row-reverse;
+    width: 100%;
+    height: 100%;
+}
+
+.video-layer {
+    position: absolute;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.touch-layer {
+    position: absolute;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.video {
+    flex-grow: 1;
+    position: relative;
+    background-color: #000000;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+}
+
+.control-buttons-list {
+    width: var(--panel-width);
+    background-color: var(--control-buttons-bg-color);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    overflow-y: auto;
+    z-index: 10;
+    padding: 8px 0;
+    box-sizing: border-box;
+}
+
+.control-button {
+    margin: 0;
+    padding: 0;
+    width: 2.143rem;
+    height: 2.143rem;
+    border: none;
+    border-radius: var(--radius-s);
+    opacity: 0.75;
+    background-color: transparent;
+    cursor: pointer;
+    transition: opacity var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.control-button:hover {
+    opacity: 1;
+    background-color: var(--controls-bg-color);
+}
+
+.control-button:active {
+    transform: scale(0.92);
+}
+
+.control-button.active {
+    opacity: 1;
+    background-color: var(--controls-bg-color);
+    box-shadow: inset 0 -2px 0 var(--accent-color);
+}
+
+/* Fullscreen/landscape toggle stays reachable while scrolling */
+.control-button.rotate-toggle {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: var(--control-buttons-bg-color);
+}
+
+@media (max-width: 768px) {
+    .control-button {
+        width: 44px;
+        height: 44px;
+    }
+}
+
+/* Hide the rotate toggle on desktop only (phones in landscape are wider than 768px) */
+@media (min-width: 769px) and (pointer: fine) {
+    .control-button.rotate-toggle {
+        display: none;
+    }
+}
+
+/* Compact controls for short (landscape) screens */
+@media (orientation: landscape) and (max-height: 520px) {
+    .control-buttons-list {
+        padding: 4px 0;
+        gap: 2px;
+    }
+
+    .control-button {
+        width: 38px;
+        height: 38px;
+    }
+
+    .control-button > svg {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+.control-wrapper > input[type=checkbox] {
+    display: none;
+}
+
+.control-wrapper > label {
+    display: inline-block;
+}
+
+.control-button > svg {
+    fill: var(--svg-button-fill);
+}
+
+.control-wrapper > input[type=checkbox].two-images:checked + label > svg.image-on {
+    display: block;
+}
+
+.control-wrapper > input[type=checkbox].two-images:not(:checked) + label > svg.image-on {
+    display: none;
+}
+
+.control-wrapper > input[type=checkbox].two-images:checked + label > svg.image-off {
+    display: none;
+}
+
+.control-wrapper > input[type=checkbox].two-images:not(:checked) + label > svg.image-off {
+    display: block;
+}
+
+.control-wrapper > input[type=checkbox]:checked + label > svg {
+    fill: var(--svg-checkbox-bg-color);
+}
+
+/* Custom scrollbars */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--button-border-color) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--button-border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--url-color);
+}
+
+.home-page-button {
+    display: none;
+}
+
+.left-gesture-zone {
+    display: none;
+}
+
+.right-gesture-zone {
+    display: none;
+}
+
+.control-buttons-left {
+    display: none;
+}
+
+@media (orientation: landscape), (orientation: portrait) and (max-width: 768px) {
+    .control-buttons-right {
+        display: flex;
+        position: fixed;
+        right: 12px;
+        top: 50%;
+        width: auto;
+        min-width: 64px;
+        transform: translateY(-50%) translateX(calc(100% + 24px));
+        background-color: hsla(0, 0%, 0%, 0.88);
+        border-radius: 16px;
+        padding: 12px;
+        gap: 10px;
+        z-index: 30;
+        box-shadow: 0 10px 30px hsla(0, 0%, 0%, 0.35);
+        transition: transform 0.18s ease;
+        touch-action: pan-y;
+    }
+
+    .control-buttons-right.open {
+        transform: translateY(-50%);
+    }
+
+    .control-buttons-right .control-button {
+        width: 52px;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .control-buttons-right .control-button > svg {
+        width: 28px;
+        height: 28px;
+        fill: hsl(0, 0%, 90%);
+    }
+
+    .control-buttons-right .control-button:hover,
+    .control-buttons-right .control-button.active {
+        background-color: hsla(0, 0%, 100%, 0.08);
+    }
+
+    .control-buttons-right .control-button.rotate-toggle {
+        background-color: hsla(0, 0%, 0%, 0.88);
+    }
+
+    .home-page-button {
+        display: block;
+    }
+
+    .right-gesture-zone {
+        display: block;
+        position: fixed;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 75px;
+        z-index: 25;
+        cursor: pointer;
+        touch-action: pan-y;
+    }
+
+    .right-gesture-zone.disabled {
+        pointer-events: none;
+    }
+
+    .left-gesture-zone {
+        display: block;
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 75px;
+        z-index: 25;
+        cursor: pointer;
+        touch-action: pan-y;
+    }
+
+    .left-gesture-zone.disabled {
+        pointer-events: none;
+    }
+
+    .control-buttons-left {
+        display: flex;
+        position: fixed;
+        left: 12px;
+        top: 50%;
+        width: auto;
+        min-width: 64px;
+        transform: translateY(-50%) translateX(calc(-100% - 24px));
+        background-color: hsla(0, 0%, 0%, 0.88);
+        border-radius: 16px;
+        padding: 12px;
+        gap: 10px;
+        z-index: 30;
+        box-shadow: 0 10px 30px hsla(0, 0%, 0%, 0.35);
+        transition: transform 0.18s ease;
+        touch-action: pan-y;
+    }
+
+    .control-buttons-left.open {
+        transform: translateY(-50%);
+    }
+
+    .control-buttons-left .control-button {
+        width: 52px;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .control-buttons-left .control-button > svg {
+        width: 28px;
+        height: 28px;
+        fill: hsl(0, 0%, 90%);
+    }
+
+    .control-buttons-left .control-button:hover,
+    .control-buttons-left .control-button.active {
+        background-color: hsla(0, 0%, 100%, 0.08);
+    }
+}
+
+@media (orientation: landscape) and (min-width: 769px) and (pointer: fine) {
+    .left-gesture-zone,
+    .right-gesture-zone {
+        display: none;
+    }
+
+    .control-buttons-left,
+    .control-buttons-right {
+        transform: translateY(-50%);
+    }
+}
+
+@media (orientation: landscape) and (max-height: 520px), (orientation: portrait) and (max-width: 768px) and (max-height: 520px) {
+    .control-buttons-right,
+    .control-buttons-left {
+        padding: 10px;
+        gap: 8px;
+    }
+
+    .control-buttons-right {
+        min-width: 56px;
+    }
+
+    .control-buttons-right .control-button,
+    .control-buttons-left .control-button {
+        width: 44px;
+        height: 44px;
+    }
+
+    .control-buttons-right .control-button > svg,
+    .control-buttons-left .control-button > svg {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition: none !important;
+        animation: none !important;
+    }
+}

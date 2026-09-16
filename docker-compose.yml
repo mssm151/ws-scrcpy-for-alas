@@ -1,0 +1,11 @@
+services:
+  ws-scrcpy:
+    build: .
+    image: ws-scrcpy:local
+    container_name: ws-scrcpy
+    restart: unless-stopped
+    ports:
+      - '8000:8000'
+    environment:
+      DEVICE: ${DEVICE:-localhost:5555}
+      EMBED_URL: ${EMBED_URL:-http://192.168.41.1:22267/}

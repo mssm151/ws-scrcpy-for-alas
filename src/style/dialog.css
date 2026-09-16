@@ -1,0 +1,159 @@
+:root {
+    --block-top-padding: 0.5rem;
+    --block-bottom-padding: 0.5rem;
+    --button-top-padding: 0.2rem;
+    --button-bottom-padding: 0.2rem;
+    --header-height: 3rem;
+    --footer-height: 1.55rem;
+}
+
+.dialog-background {
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background-color: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 3;
+}
+
+.dialog-container {
+    font-family: var(--font-family-ui);
+    width: 75%;
+    max-width: 30rem;
+    min-width: 20rem;
+    background-color: var(--surface-color);
+    border-radius: var(--radius-l);
+    box-shadow: 0 24px 48px -12px var(--shadow-color), 0 0 0 1px var(--border-color);
+    overflow: hidden;
+}
+
+.dialog-container.ready {
+    height: 100%;
+    min-height: 100%;
+}
+
+.dialog-container button, .dialog-container select, .dialog-container input {
+    font-family: var(--font-family-ui);
+}
+
+.dialog-container button {
+    font-size: var(--font-size);
+}
+
+.dialog-container select {
+    text-overflow: ellipsis;
+}
+
+.dialog-block {
+}
+
+.dialog-header {
+    background-color: var(--header-bg-color);
+    height: var(--header-height);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    width: auto;
+    position: initial;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.dialog-header span.dialog-title {
+    display: inline-block;
+    padding: 0 0.5rem;
+    font-weight: 600;
+}
+
+.dialog-body {
+    padding: var(--block-top-padding) 0.5rem var(--block-bottom-padding);
+    background-color: var(--control-buttons-bg-color);
+    overflow: auto;
+}
+
+.dialog-body.hidden {
+    height: 0;
+    padding: 0;
+}
+
+.dialog-body.visible {
+    height: calc(
+            100%
+            - 2 * var(--block-top-padding)
+            - 2 * var(--block-bottom-padding)
+            - var(--header-height)
+            - var(--footer-height)
+    );
+}
+
+.dialog-footer {
+    padding: var(--block-top-padding) 0.5rem var(--block-bottom-padding);
+    background-color: var(--stream-bg-color);
+    height: var(--footer-height);
+    overflow: hidden;
+}
+
+.dialog-footer span.subtitle {
+    font-weight: lighter;
+    line-height: var(--footer-height);
+    float: left;
+}
+
+.dialog-footer button {
+    padding: var(--button-top-padding) 0.75rem var(--button-bottom-padding);
+    margin: 0 0 0 0.5rem;
+    border-radius: var(--radius-s);
+    color: var(--button-text-color);
+    border: 1px solid var(--button-border-color);
+    cursor: pointer;
+    background-color: rgba(0, 0, 0, 0);
+    height: var(--footer-height);
+    float: right;
+    font-weight: 500;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.dialog-footer button:hover:not(:disabled) {
+    background-color: hsla(214, 84%, 48%, 0.08);
+    border-color: var(--button-text-color);
+}
+
+.dialog-footer button:disabled {
+    cursor: not-allowed;
+    color: var(--text-color-light);
+}
+
+.controls .label {
+    grid-column: labels;
+}
+
+.controls .input {
+    grid-column: controls;
+    box-sizing: border-box;
+    margin: 0;
+    border: 1px solid var(--button-border-color);
+    border-radius: var(--radius-s);
+    padding: 4px 8px;
+    color: var(--text-color);
+    background-color: var(--surface-color);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.controls .input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px hsla(214, 84%, 48%, 0.15);
+}
+
+.controls .button {
+    grid-column: controls;
+}
+
+.controls {
+    display: grid;
+    grid-template-columns: [labels] 35% [controls] 65%;
+    padding: 1rem;
+    grid-gap: 0.2rem;
+    align-items: center;
+}

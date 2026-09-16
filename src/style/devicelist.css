@@ -1,0 +1,320 @@
+:root {
+    --device-border-color: var(--border-color);
+    --device-list-stripe-color: var(--surface-color);
+    --device-list-default-color: var(--surface-color);
+    --device-list-hover-color: hsl(220, 40%, 96%);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --device-border-color: hsl(220, 14%, 24%);
+        --device-list-stripe-color: hsl(220, 14%, 16%);
+        --device-list-default-color: hsl(220, 14%, 16%);
+        --device-list-hover-color: hsl(220, 14%, 20%);
+    }
+}
+
+body.list {
+    height: auto;
+    width: auto;
+    overflow: auto;
+}
+
+/* Embedded page layout: connect area on top, external page below.
+   Enabled when the backend serves a non-empty EMBED_URL. */
+body.list.has-embed {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+}
+
+body.list.has-embed #devices {
+    order: 1;
+    flex: 0 0 auto;
+    max-height: calc(100vh / 6);
+    height: auto;
+    width: 100%;
+    padding: 8px 12px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    position: relative;
+    z-index: 2;
+}
+
+body.list.has-embed #devices .tracker-name {
+    display: none;
+}
+
+body.list.has-embed #devices .device-list {
+    gap: 6px;
+}
+
+body.list.has-embed .embed-panel {
+    order: 2;
+    flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+    background-color: #000;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+}
+
+body.list.has-embed .embed-panel .embed-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+body:not(.list) .embed-panel {
+    display: none;
+}
+
+@media (min-width: 769px) {
+    /* Desktop: narrow connect sidebar on the left, embedded page on the right */
+    body.list.has-embed {
+        flex-direction: row;
+    }
+
+    body.list.has-embed #devices {
+        flex: 0 0 auto;
+        width: auto;
+        max-width: 220px;
+        max-height: 100%;
+        height: 100%;
+        padding: 8px;
+    }
+
+    body.list.has-embed .embed-panel {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: 100%;
+        min-width: 0;
+    }
+
+    body.list.has-embed #devices .device-list div.device {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding: 8px;
+    }
+
+    body.list.has-embed #devices .device-list div.device .connect-button {
+        order: 1;
+        width: 100%;
+        min-height: 36px;
+        padding: 6px 10px;
+        font-size: 0;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='M12 5l7 7-7 7'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 20px 20px;
+    }
+
+    body.list.has-embed #devices .device-list div.device .connect-button:disabled {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='M12 5l7 7-7 7'/%3E%3C/svg%3E");
+    }
+
+    body.list.has-embed #devices .device-list div.device .device-state {
+        order: 2;
+        margin-left: 0;
+        align-self: center;
+        padding: 4px 10px;
+        font-size: 0.78rem;
+    }
+}
+
+#devices {
+    padding: 24px clamp(16px, 6vw, 96px);
+    width: 100%;
+    height: calc(100% - 48px);
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+
+body.stream #devices {
+    background-color: var(--device-list-default-color);
+    opacity: .8;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+}
+
+body.list #device_list_menu {
+    display: none;
+}
+
+#device_list_menu {
+    display: block;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    z-index: 4;
+}
+
+#devices .device-list {
+    position: relative;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    border-spacing: 0;
+    border-collapse: collapse;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#devices .device-list button {
+    font-size: var(--font-size);
+    color: var(--button-text-color);
+}
+
+#devices .device-list div.device:nth-child(2n+1),
+#devices .device-list div.device:nth-child(2n) {
+    background-color: var(--device-list-default-color);
+}
+
+/* Connection state pill */
+#devices .device-state {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background-color: hsla(4, 90%, 55%, 0.12);
+    color: var(--error-color);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+#devices .device-state .state-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background-color: currentColor;
+    flex-shrink: 0;
+}
+
+#devices .device.active .device-state {
+    background-color: hsla(145, 72%, 36%, 0.12);
+    color: var(--success-color);
+}
+
+#devices .device.active .device-state .state-dot {
+    animation: device-state-pulse 2s ease-in-out infinite;
+}
+
+@keyframes device-state-pulse {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 hsla(145, 72%, 36%, 0.45);
+    }
+    50% {
+        box-shadow: 0 0 0 5px hsla(145, 72%, 36%, 0);
+    }
+}
+
+/* Device rows rendered as cards */
+#devices .device-list div.device {
+    padding: 10px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-m);
+    background-color: var(--surface-color);
+    box-shadow: 0 1px 2px var(--shadow-color);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    transition: box-shadow var(--transition-fast), transform var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+#devices .device-list div.device:hover {
+    background-color: var(--device-list-hover-color);
+    box-shadow: 0 4px 14px var(--shadow-color);
+    transform: translateY(-1px);
+}
+
+/* Primary connect action on the device card */
+#devices .device-list div.device .connect-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 8px 26px;
+    border: none;
+    border-radius: 999px;
+    background-color: var(--accent-color);
+    color: hsl(0, 0%, 100%);
+    font-size: var(--font-size);
+    font-weight: 600;
+    font-family: var(--font-family-ui);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+#devices .device-list div.device .connect-button:hover {
+    background-color: var(--accent-color-hover);
+    box-shadow: 0 4px 12px hsla(214, 84%, 48%, 0.35);
+    transform: translateY(-1px);
+}
+
+#devices .device-list div.device .connect-button:active {
+    transform: translateY(0) scale(0.97);
+}
+
+#devices .device-list div.device .connect-button:disabled {
+    background-color: var(--button-border-color);
+    color: var(--text-color-light);
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+@media (max-width: 768px) {
+    #devices .tracker-name {
+        display: none;
+    }
+
+    /* Single compact row: connect button on the left, status on the right */
+    #devices .device-list div.device {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+    }
+
+    #devices .device-list div.device .connect-button {
+        order: 1;
+        flex: 1 1 auto;
+        width: auto;
+        min-height: 44px;
+        padding: 10px 16px;
+    }
+
+    #devices .device-list div.device .device-state {
+        order: 2;
+        flex: 0 0 auto;
+        margin-left: 0;
+        padding: 5px 10px;
+        font-size: 0.78rem;
+    }
+}
+
+#devices .device-list .device.not-active {
+    opacity: 0.85;
+}
+
+#devices .tracker-name {
+    padding: 5px 20px 5px;
+    font-size: larger;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}

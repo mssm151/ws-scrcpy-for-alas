@@ -1,0 +1,729 @@
+import { BaseClient } from '../../client/BaseClient';
+import { ParamsStreamScrcpy } from '../../../types/ParamsStreamScrcpy';
+import { GoogMoreBox } from '../toolbox/GoogMoreBox';
+import { GoogToolBox } from '../toolbox/GoogToolBox';
+import VideoSettings from '../../VideoSettings';
+import Size from '../../Size';
+import { ControlMessage } from '../../controlMessage/ControlMessage';
+import { ClientsStats, DisplayCombinedInfo } from '../../client/StreamReceiver';
+import { CommandControlMessage } from '../../controlMessage/CommandControlMessage';
+import Util from '../../Util';
+import FilePushHandler from '../filePush/FilePushHandler';
+import DragAndPushLogger from '../DragAndPushLogger';
+import { KeyEventListener, KeyInputHandler } from '../KeyInputHandler';
+import { KeyCodeControlMessage } from '../../controlMessage/KeyCodeControlMessage';
+import { BasePlayer, PlayerClass } from '../../player/BasePlayer';
+import GoogDeviceDescriptor from '../../../types/GoogDeviceDescriptor';
+import { ConfigureScrcpy } from './ConfigureScrcpy';
+import { DeviceTracker } from './DeviceTracker';
+import { ControlCenterCommand } from '../../../common/ControlCenterCommand';
+import { html } from '../../ui/HtmlTag';
+import {
+    FeaturedInteractionHandler,
+    InteractionHandlerListener,
+} from '../../interactionHandler/FeaturedInteractionHandler';
+import DeviceMessage from '../DeviceMessage';
+import { DisplayInfo } from '../../DisplayInfo';
+import { Attribute } from '../../Attribute';
+import { HostTracker } from '../../client/HostTracker';
+import { ACTION } from '../../../common/Action';
+import { StreamReceiverScrcpy } from './StreamReceiverScrcpy';
+import { ParamsDeviceTracker } from '../../../types/ParamsDeviceTracker';
+import { ScrcpyFilePushStream } from '../filePush/ScrcpyFilePushStream';
+import { DeviceMoreBox } from '../toolbox/DeviceMoreBox';
+import { DeviceControl } from './DeviceControl';
+import StreamSettingsStorage from '../StreamSettingsStorage';
+
+type StartParams = {
+    udid: string;
+    playerName?: string;
+    player?: BasePlayer;
+    fitToScreen?: boolean;
+    videoSettings?: VideoSettings;
+};
+
+const TAG = '[StreamClientScrcpy]';
+
+export class StreamClientScrcpy
+    extends BaseClient<ParamsStreamScrcpy, never>
+    implements KeyEventListener, InteractionHandlerListener
+{
+    public static ACTION = 'stream';
+    public static readonly DEFAULT_PLAYER_NAME = 'mse';
+    private static players: Map<string, PlayerClass> = new Map<string, PlayerClass>();
+
+    private controlButtons?: HTMLElement;
+    private deviceName = '';
+    private clientId = -1;
+    private clientsCount = -1;
+    private joinedStream = false;
+    private requestedVideoSettings?: VideoSettings;
+    private touchHandler?: FeaturedInteractionHandler;
+    private moreBox?: GoogMoreBox;
+    private player?: BasePlayer;
+    private filePushHandler?: FilePushHandler;
+    private fitToScreen?: boolean;
+    private readonly streamReceiver: StreamReceiverScrcpy;
+    private settingsPanelButton?: HTMLButtonElement;
+    private morePanelButton?: HTMLButtonElement;
+    private rotateButton?: HTMLButtonElement;
+    private deviceMoreBox?: DeviceMoreBox;
+
+    public static registerPlayer(playerClass: PlayerClass): void {
+        if (playerClass.isSupported()) {
+            this.players.set(playerClass.playerFullName, playerClass);
+        }
+    }
+
+    public static getPlayers(): PlayerClass[] {
+        return Array.from(this.players.values());
+    }
+
+    private static getPlayerClass(playerName: string): PlayerClass | undefined {
+        let playerClass: PlayerClass | undefined;
+        for (const value of StreamClientScrcpy.players.values()) {
+            if (value.playerFullName === playerName || value.playerCodeName === playerName) {
+                playerClass = value;
+            }
+        }
+        return playerClass;
+    }
+
+    public static createPlayer(playerName: string, udid: string, displayInfo?: DisplayInfo): BasePlayer | undefined {
+        const playerClass = this.getPlayerClass(playerName);
+        if (!playerClass) {
+            return;
+        }
+        return new playerClass(udid, displayInfo);
+    }
+
+    public static getFitToScreen(playerName: string, udid: string, displayInfo?: DisplayInfo): boolean {
+        const playerClass = this.getPlayerClass(playerName);
+        if (!playerClass) {
+            return false;
+        }
+        return playerClass.getFitToScreenStatus(udid, displayInfo);
+    }
+
+    public static start(
+        query: URLSearchParams | ParamsStreamScrcpy,
+        streamReceiver?: StreamReceiverScrcpy,
+        player?: BasePlayer,
+        fitToScreen?: boolean,
+        videoSettings?: VideoSettings,
+    ): StreamClientScrcpy {
+        if (query instanceof URLSearchParams) {
+            const params = StreamClientScrcpy.parseParameters(query);
+            return new StreamClientScrcpy(params, streamReceiver, player, fitToScreen, videoSettings);
+        } else {
+            return new StreamClientScrcpy(query, streamReceiver, player, fitToScreen, videoSettings);
+        }
+    }
+
+    private static createVideoSettingsWithBounds(old: VideoSettings, newBounds: Size): VideoSettings {
+        return new VideoSettings({
+            crop: old.crop,
+            bitrate: old.bitrate,
+            bounds: newBounds,
+            maxFps: old.maxFps,
+            iFrameInterval: old.iFrameInterval,
+            sendFrameMeta: old.sendFrameMeta,
+            lockedVideoOrientation: old.lockedVideoOrientation,
+            displayId: old.displayId,
+            codecOptions: old.codecOptions,
+            encoderName: old.encoderName,
+        });
+    }
+
+    protected constructor(
+        params: ParamsStreamScrcpy,
+        streamReceiver?: StreamReceiverScrcpy,
+        player?: BasePlayer,
+        fitToScreen?: boolean,
+        videoSettings?: VideoSettings,
+    ) {
+        super(params);
+        if (streamReceiver) {
+            this.streamReceiver = streamReceiver;
+        } else {
+            this.streamReceiver = new StreamReceiverScrcpy(this.params);
+        }
+
+        const { udid, player: playerName } = this.params;
+        // Allow the stream deep link to start already fit to screen
+        // (?fitToScreen=1), so an embedded/auto-started stream can request it
+        // without going through the Configure screen.
+        if (typeof fitToScreen !== 'boolean') {
+            fitToScreen = this.params.fitToScreen;
+        }
+        this.startStream({ udid, player, playerName, fitToScreen, videoSettings });
+        this.setBodyClass('stream');
+    }
+
+    public static parseParameters(params: URLSearchParams): ParamsStreamScrcpy {
+        const typedParams = super.parseParameters(params);
+        const { action } = typedParams;
+        if (action !== ACTION.STREAM_SCRCPY) {
+            throw Error('Incorrect action');
+        }
+        return {
+            ...typedParams,
+            action,
+            player: Util.parseString(params, 'player', true),
+            udid: Util.parseString(params, 'udid', true),
+            ws: Util.parseString(params, 'ws', true),
+            captureKeyboard: Util.parseBoolean(params, 'captureKeyboard', false),
+            fitToScreen: params.has('fitToScreen') ? Util.parseBoolean(params, 'fitToScreen') : undefined,
+        };
+    }
+
+    public OnDeviceMessage = (message: DeviceMessage): void => {
+        if (this.moreBox) {
+            this.moreBox.OnDeviceMessage(message);
+        }
+    };
+
+    public onVideo = (data: ArrayBuffer): void => {
+        if (!this.player) {
+            return;
+        }
+        const STATE = BasePlayer.STATE;
+        if (this.player.getState() === STATE.PAUSED) {
+            this.player.play();
+        }
+        if (this.player.getState() === STATE.PLAYING) {
+            this.player.pushFrame(new Uint8Array(data));
+        }
+    };
+
+    public onClientsStats = (stats: ClientsStats): void => {
+        this.deviceName = stats.deviceName;
+        this.clientId = stats.clientId;
+        this.setTitle(`Stream ${this.deviceName}`);
+    };
+
+    public onDisplayInfo = (infoArray: DisplayCombinedInfo[]): void => {
+        if (!this.player) {
+            return;
+        }
+        let currentSettings = this.player.getVideoSettings();
+        const displayId = currentSettings.displayId;
+        const info = infoArray.find((value) => {
+            return value.displayInfo.displayId === displayId;
+        });
+        if (!info) {
+            return;
+        }
+        if (this.player.getState() === BasePlayer.STATE.PAUSED) {
+            this.player.play();
+        }
+        const { videoSettings, screenInfo } = info;
+        this.player.setDisplayInfo(info.displayInfo);
+        if (typeof this.fitToScreen !== 'boolean') {
+            this.fitToScreen = this.player.getFitToScreenStatus();
+        }
+        if (this.fitToScreen) {
+            const newBounds = this.getMaxSize();
+            if (newBounds) {
+                currentSettings = StreamClientScrcpy.createVideoSettingsWithBounds(currentSettings, newBounds);
+                this.player.setVideoSettings(currentSettings, this.fitToScreen, false);
+            }
+        }
+        if (!videoSettings || !screenInfo) {
+            this.joinedStream = true;
+            this.sendMessage(CommandControlMessage.createSetVideoSettingsCommand(currentSettings));
+            return;
+        }
+
+        this.clientsCount = info.connectionCount;
+        let min = VideoSettings.copy(videoSettings);
+        const oldInfo = this.player.getScreenInfo();
+        if (!screenInfo.equals(oldInfo)) {
+            this.player.setScreenInfo(screenInfo);
+        }
+
+        if (!videoSettings.equals(currentSettings)) {
+            this.applyNewVideoSettings(videoSettings, videoSettings.equals(this.requestedVideoSettings));
+        }
+        if (!oldInfo) {
+            const bounds = currentSettings.bounds;
+            const videoSize: Size = screenInfo.videoSize;
+            const onlyOneClient = this.clientsCount === 0;
+            const smallerThenCurrent = bounds && (bounds.width < videoSize.width || bounds.height < videoSize.height);
+            if (onlyOneClient || smallerThenCurrent) {
+                min = currentSettings;
+            }
+            const minBounds = currentSettings.bounds?.intersect(min.bounds);
+            if (minBounds && !minBounds.equals(min.bounds)) {
+                min = StreamClientScrcpy.createVideoSettingsWithBounds(min, minBounds);
+            }
+        }
+        if (!min.equals(videoSettings) || !this.joinedStream) {
+            this.joinedStream = true;
+            this.sendMessage(CommandControlMessage.createSetVideoSettingsCommand(min));
+        }
+    };
+
+    public onDisconnected = (): void => {
+        this.streamReceiver.off('deviceMessage', this.OnDeviceMessage);
+        this.streamReceiver.off('video', this.onVideo);
+        this.streamReceiver.off('clientsStats', this.onClientsStats);
+        this.streamReceiver.off('displayInfo', this.onDisplayInfo);
+        this.streamReceiver.off('disconnected', this.onDisconnected);
+
+        this.filePushHandler?.release();
+        this.filePushHandler = undefined;
+        this.touchHandler?.release();
+        this.touchHandler = undefined;
+        window.removeEventListener('resize', this.onWindowResize);
+        if (this.resizeTimeoutId !== undefined) {
+            clearTimeout(this.resizeTimeoutId);
+            this.resizeTimeoutId = undefined;
+        }
+    };
+
+    public startStream({ udid, player, playerName, videoSettings, fitToScreen }: StartParams): void {
+        if (!udid) {
+            throw Error(`Invalid udid value: "${udid}"`);
+        }
+
+        const storedSettings = StreamSettingsStorage.load();
+        this.fitToScreen = fitToScreen;
+        if (!player) {
+            if (typeof playerName !== 'string') {
+                throw Error('Must provide BasePlayer instance or playerName');
+            }
+            let displayInfo: DisplayInfo | undefined;
+            if (this.streamReceiver && videoSettings) {
+                displayInfo = this.streamReceiver.getDisplayInfo(videoSettings.displayId);
+            }
+            const p = StreamClientScrcpy.createPlayer(playerName, udid, displayInfo);
+            if (!p) {
+                throw Error(`Unsupported player: "${playerName}"`);
+            }
+            if (typeof fitToScreen !== 'boolean') {
+                fitToScreen = storedSettings ? storedSettings.fitToScreen : true;
+            }
+            player = p;
+        }
+        this.fitToScreen = fitToScreen;
+        this.player = player;
+        this.setTouchListeners(player);
+
+        if (!videoSettings) {
+            videoSettings = player.getVideoSettings();
+            if (storedSettings) {
+                videoSettings = StreamSettingsStorage.merge(videoSettings, storedSettings.videoSettings);
+            }
+        }
+
+        const deviceView = document.createElement('div');
+        deviceView.className = 'device-view';
+        const googMoreBox = (this.moreBox = new GoogMoreBox(udid, player, this, videoSettings));
+        const moreBox = googMoreBox.getHolderElement();
+        const deviceMoreBox = new DeviceMoreBox({
+            udid,
+            trackerParams: DeviceControl.toTrackerParams(this.params),
+            onClose: () => {
+                this.toggleMorePanel();
+            },
+        });
+        this.deviceMoreBox = deviceMoreBox;
+        const deviceMoreBoxHolder = deviceMoreBox.getHolderElement();
+        const googToolBox = GoogToolBox.createToolBox(udid, player, this, moreBox, {
+            captureKeyboard: this.params.captureKeyboard,
+            deviceMoreBox: deviceMoreBoxHolder,
+        });
+        this.controlButtons = googToolBox.getHolderElement();
+        const leftControls = googToolBox.getLeftHolderElement();
+        const gestureZone = googToolBox.getGestureZoneElement();
+        const rightGestureZone = googToolBox.getRightGestureZoneElement();
+        const stop = (ev?: string | Event) => {
+            if (ev && ev instanceof Event && ev.type === 'error') {
+                console.error(TAG, ev);
+            }
+            let parent;
+            parent = deviceView.parentElement;
+            if (parent) {
+                parent.removeChild(deviceView);
+            }
+            parent = moreBox.parentElement;
+            if (parent) {
+                parent.removeChild(moreBox);
+            }
+            googToolBox.release();
+            this.deviceMoreBox?.destroy();
+            document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+            this.streamReceiver.stop();
+            if (this.player) {
+                this.player.stop();
+            }
+        };
+        googMoreBox.setOnStop(stop);
+        deviceView.appendChild(this.controlButtons);
+        const video = document.createElement('div');
+        video.className = 'video';
+        deviceView.appendChild(video);
+        deviceView.appendChild(moreBox);
+        deviceView.appendChild(deviceMoreBoxHolder);
+        deviceView.appendChild(leftControls);
+        deviceView.appendChild(gestureZone);
+        deviceView.appendChild(rightGestureZone);
+        player.setParent(video);
+        player.pause();
+
+        document.body.appendChild(deviceView);
+        void this.applyDefaultBrowserOrientation(StreamSettingsStorage.loadBrowserOrientation() ?? 90);
+        if (fitToScreen) {
+            const newBounds = this.getMaxSize();
+            if (newBounds) {
+                videoSettings = StreamClientScrcpy.createVideoSettingsWithBounds(videoSettings, newBounds);
+            }
+        }
+        this.applyNewVideoSettings(videoSettings, false);
+        const element = player.getTouchableElement();
+        const logger = new DragAndPushLogger(element);
+        this.filePushHandler = new FilePushHandler(element, new ScrcpyFilePushStream(this.streamReceiver));
+        this.filePushHandler.addEventListener(logger);
+
+        const streamReceiver = this.streamReceiver;
+        streamReceiver.on('deviceMessage', this.OnDeviceMessage);
+        streamReceiver.on('video', this.onVideo);
+        streamReceiver.on('clientsStats', this.onClientsStats);
+        streamReceiver.on('displayInfo', this.onDisplayInfo);
+        streamReceiver.on('disconnected', this.onDisconnected);
+        console.log(TAG, player.getName(), udid);
+
+        // When the player is in fit-to-screen mode, re-encode the stream at the
+        // new container size on window resize (debounced) so it stays crisp
+        // instead of being CSS-scaled. Inert when the user picked a fixed
+        // resolution.
+        window.addEventListener('resize', this.onWindowResize);
+        document.addEventListener('fullscreenchange', this.onFullscreenChange);
+    }
+
+    private resizeTimeoutId?: ReturnType<typeof setTimeout>;
+
+    public registerPanelButton(name: 'settings' | 'more', button: HTMLButtonElement): void {
+        if (name === 'settings') {
+            this.settingsPanelButton = button;
+        } else {
+            this.morePanelButton = button;
+        }
+    }
+
+    public toggleSettingsPanel(): void {
+        if (!this.moreBox) {
+            return;
+        }
+        const box = this.moreBox.getHolderElement();
+        const visible = box.style.display === 'block';
+        if (!visible) {
+            this.hideMorePanel();
+        }
+        box.style.display = visible ? 'none' : 'block';
+        this.settingsPanelButton?.classList.toggle('active', !visible);
+    }
+
+    public toggleMorePanel(): void {
+        if (!this.deviceMoreBox) {
+            return;
+        }
+        const box = this.deviceMoreBox.getHolderElement();
+        const visible = box.style.display === 'block';
+        if (!visible) {
+            this.hideSettingsPanel();
+        }
+        box.style.display = visible ? 'none' : 'block';
+        this.morePanelButton?.classList.toggle('active', !visible);
+    }
+
+    /**
+     * Enters fullscreen and locks the screen orientation to landscape,
+     * like a fullscreen video player. Returns `true` when fullscreen is on.
+     */
+    public async toggleFullscreenLandscape(): Promise<boolean> {
+        if (document.fullscreenElement) {
+            try {
+                await document.exitFullscreen();
+            } catch (error: any) {
+                console.error(TAG, 'Failed to exit fullscreen:', error.message);
+            }
+            return false;
+        }
+        return this.enterFullscreenOrientation('landscape');
+    }
+
+    private static isMobile(): boolean {
+        return window.matchMedia('(pointer: coarse)').matches;
+    }
+
+    private async applyDefaultBrowserOrientation(browserOrientation: number): Promise<void> {
+        if (!StreamClientScrcpy.isMobile()) {
+            return;
+        }
+        const orientation = browserOrientation === 0 ? 'portrait' : 'landscape';
+        await this.enterFullscreenOrientation(orientation);
+    }
+
+    private async enterFullscreenOrientation(orientation: 'landscape' | 'portrait'): Promise<boolean> {
+        if (!document.fullscreenElement) {
+            try {
+                await document.documentElement.requestFullscreen();
+            } catch (error: any) {
+                console.error(TAG, 'Failed to enter fullscreen:', error.message);
+                return false;
+            }
+        }
+        try {
+            type LockableOrientation = ScreenOrientation & { lock?: (orientation: string) => Promise<void> };
+            const screenOrientation = screen.orientation as LockableOrientation | undefined;
+            if (screenOrientation && typeof screenOrientation.lock === 'function') {
+                await screenOrientation.lock(orientation);
+            }
+        } catch (error: any) {
+            console.warn(TAG, 'Orientation lock is not supported:', error.message);
+        }
+        return true;
+    }
+
+    public registerRotateButton(button: HTMLButtonElement): void {
+        this.rotateButton = button;
+    }
+
+    /**
+     * Reloads the stream page with another decoder (player).
+     */
+    public reconnectWithPlayer(playerName: string): void {
+        const params = this.params;
+        const q = new URLSearchParams();
+        q.set('action', ACTION.STREAM_SCRCPY);
+        q.set('udid', params.udid);
+        q.set('player', playerName);
+        q.set('ws', params.ws);
+        if (params.secure !== undefined) {
+            q.set('secure', params.secure ? 'true' : 'false');
+        }
+        if (params.hostname) {
+            q.set('hostname', params.hostname);
+        }
+        if (typeof params.port === 'number') {
+            q.set('port', params.port.toString(10));
+        }
+        if (params.pathname) {
+            q.set('pathname', params.pathname);
+        }
+        if (params.useProxy !== undefined) {
+            q.set('useProxy', params.useProxy ? 'true' : 'false');
+        }
+        if (params.captureKeyboard) {
+            q.set('captureKeyboard', 'true');
+        }
+        location.hash = `#!${q.toString()}`;
+        location.reload();
+    }
+
+    private onFullscreenChange = (): void => {
+        this.rotateButton?.classList.toggle('active', !!document.fullscreenElement);
+    };
+
+    private hideSettingsPanel(): void {
+        if (this.moreBox) {
+            this.moreBox.getHolderElement().style.display = 'none';
+        }
+        this.settingsPanelButton?.classList.remove('active');
+    }
+
+    private hideMorePanel(): void {
+        if (this.deviceMoreBox) {
+            this.deviceMoreBox.getHolderElement().style.display = 'none';
+        }
+        this.morePanelButton?.classList.remove('active');
+    }
+
+    private onWindowResize = (): void => {
+        if (this.resizeTimeoutId !== undefined) {
+            clearTimeout(this.resizeTimeoutId);
+        }
+        this.resizeTimeoutId = setTimeout(this.applyFitToScreenBounds, 300);
+    };
+
+    private applyFitToScreenBounds = (): void => {
+        this.resizeTimeoutId = undefined;
+        if (!this.player || !this.player.getFitToScreenStatus()) {
+            return;
+        }
+        const newBounds = this.getMaxSize();
+        if (!newBounds) {
+            return;
+        }
+        const current = this.player.getVideoSettings();
+        if (current.bounds && current.bounds.equals(newBounds)) {
+            return;
+        }
+        const updated = StreamClientScrcpy.createVideoSettingsWithBounds(current, newBounds);
+        this.player.setVideoSettings(updated, true, false);
+        this.sendNewVideoSetting(updated);
+    };
+
+    public sendMessage(message: ControlMessage): void {
+        this.streamReceiver.sendEvent(message);
+    }
+
+    public getDeviceName(): string {
+        return this.deviceName;
+    }
+
+    public getHomeUrl(): string {
+        return this.params.pathname || location.pathname;
+    }
+
+    public setHandleKeyboardEvents(enabled: boolean): void {
+        if (enabled) {
+            KeyInputHandler.addEventListener(this);
+        } else {
+            KeyInputHandler.removeEventListener(this);
+        }
+    }
+
+    public onKeyEvent(event: KeyCodeControlMessage): void {
+        this.sendMessage(event);
+    }
+
+    public sendNewVideoSetting(videoSettings: VideoSettings): void {
+        this.requestedVideoSettings = videoSettings;
+        this.sendMessage(CommandControlMessage.createSetVideoSettingsCommand(videoSettings));
+    }
+
+    public getClientId(): number {
+        return this.clientId;
+    }
+
+    public getClientsCount(): number {
+        return this.clientsCount;
+    }
+
+    public getMaxSize(): Size | undefined {
+        if (!this.controlButtons) {
+            return;
+        }
+        const body = document.body;
+        const controlsWidth =
+            getComputedStyle(this.controlButtons).position === 'fixed' ? 0 : this.controlButtons.clientWidth;
+        const width = (body.clientWidth - controlsWidth) & ~15;
+        const height = body.clientHeight & ~15;
+        return new Size(width, height);
+    }
+
+    private setTouchListeners(player: BasePlayer): void {
+        if (this.touchHandler) {
+            return;
+        }
+        this.touchHandler = new FeaturedInteractionHandler(player, this);
+    }
+
+    private applyNewVideoSettings(videoSettings: VideoSettings, saveToStorage: boolean): void {
+        let fitToScreen = false;
+
+        // TODO: create control (switch/checkbox) instead
+        if (videoSettings.bounds && videoSettings.bounds.equals(this.getMaxSize())) {
+            fitToScreen = true;
+        }
+        if (this.player) {
+            this.player.setVideoSettings(videoSettings, fitToScreen, saveToStorage);
+        }
+    }
+
+    public static createEntryForDeviceList(
+        descriptor: GoogDeviceDescriptor,
+        blockClass: string,
+        fullName: string,
+        params: ParamsDeviceTracker,
+    ): HTMLElement | DocumentFragment | undefined {
+        const hasPid = descriptor.pid !== -1;
+        if (hasPid) {
+            const configureButtonId = `configure_${Util.escapeUdid(descriptor.udid)}`;
+            const e = html`<div class="stream ${blockClass}">
+                <button
+                    ${Attribute.UDID}="${descriptor.udid}"
+                    ${Attribute.COMMAND}="${ControlCenterCommand.CONFIGURE_STREAM}"
+                    ${Attribute.FULL_NAME}="${fullName}"
+                    ${Attribute.SECURE}="${params.secure}"
+                    ${Attribute.HOSTNAME}="${params.hostname}"
+                    ${Attribute.PORT}="${params.port}"
+                    ${Attribute.PATHNAME}="${params.pathname}"
+                    ${Attribute.USE_PROXY}="${params.useProxy}"
+                    id="${configureButtonId}"
+                    class="active action-button"
+                >
+                    Configure stream
+                </button>
+            </div>`;
+            const a = e.content.getElementById(configureButtonId);
+            a && (a.onclick = this.onConfigureStreamClick);
+            return e.content;
+        }
+        return;
+    }
+
+    private static onConfigureStreamClick = (event: MouseEvent): void => {
+        const button = event.currentTarget as HTMLAnchorElement;
+        const udid = Util.parseStringEnv(button.getAttribute(Attribute.UDID) || '');
+        const fullName = button.getAttribute(Attribute.FULL_NAME);
+        const secure = Util.parseBooleanEnv(button.getAttribute(Attribute.SECURE) || undefined) || false;
+        const hostname = Util.parseStringEnv(button.getAttribute(Attribute.HOSTNAME) || undefined) || '';
+        const port = Util.parseIntEnv(button.getAttribute(Attribute.PORT) || undefined);
+        const pathname = Util.parseStringEnv(button.getAttribute(Attribute.PATHNAME) || undefined) || '';
+        const useProxy = Util.parseBooleanEnv(button.getAttribute(Attribute.USE_PROXY) || undefined);
+        if (!udid) {
+            throw Error(`Invalid udid value: "${udid}"`);
+        }
+        if (typeof port !== 'number') {
+            throw Error(`Invalid port type: ${typeof port}`);
+        }
+        const tracker = DeviceTracker.getInstance({
+            type: 'android',
+            secure,
+            hostname,
+            port,
+            pathname,
+            useProxy,
+        });
+        const descriptor = tracker.getDescriptorByUdid(udid);
+        if (!descriptor) {
+            return;
+        }
+        event.preventDefault();
+        const elements = document.getElementsByName(`${DeviceTracker.AttributePrefixInterfaceSelectFor}${fullName}`);
+        if (!elements || !elements.length) {
+            return;
+        }
+        const select = elements[0] as HTMLSelectElement;
+        const optionElement = select.options[select.selectedIndex];
+        const ws = optionElement.getAttribute(Attribute.URL);
+        const name = optionElement.getAttribute(Attribute.NAME);
+        if (!ws || !name) {
+            return;
+        }
+        const options: ParamsStreamScrcpy = {
+            udid,
+            ws,
+            player: '',
+            action: ACTION.STREAM_SCRCPY,
+            secure,
+            hostname,
+            port,
+            pathname,
+            useProxy,
+        };
+        const dialog = new ConfigureScrcpy(tracker, descriptor, options);
+        dialog.on('closed', StreamClientScrcpy.onConfigureDialogClosed);
+    };
+
+    private static onConfigureDialogClosed = (event: { dialog: ConfigureScrcpy; result: boolean }): void => {
+        event.dialog.off('closed', StreamClientScrcpy.onConfigureDialogClosed);
+        if (event.result) {
+            HostTracker.getInstance().destroy();
+        }
+    };
+}
